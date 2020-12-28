@@ -20,30 +20,23 @@ func GenerateReqId() string {
 	return uuid.New().String()
 }
 
-func ReqIdMiddleware(next http.Handler) http.Handler {
+func ZeroLogMiddleware(logger zerolog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := GenerateReqId()
+
+		// first save id into current ctx
 		ctx := r.Context()
-		id := r.Header.Get(ReqIdHeaderName)
-		if id == "" {
-			id = GenerateReqId()
-		}
 		ctx = context.WithValue(ctx, ReqIdContextName, id)
 		r = r.WithContext(ctx)
-		log := zerolog.Ctx(ctx)
-		log.UpdateContext(func(c zerolog.Context) zerolog.Context {
-			return c.Str(ReqIdContextName, id)
-		})
+
+		// setup logger req id field
+		l := logger.With().Str(ReqIdContextName, id).Logger()
+		lctx := l.WithContext(r.Context())
+		r = r.WithContext(lctx)
+
+		// setup response headers req id
 		w.Header().Set(ReqIdHeaderName, id)
+
 		next.ServeHTTP(w, r)
 	})
-}
-
-func LogMiddleware(log zerolog.Logger) func(next http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			l := log.With().Logger()
-			r = r.WithContext(l.WithContext(r.Context()))
-			next.ServeHTTP(w, r)
-		})
-	}
 }

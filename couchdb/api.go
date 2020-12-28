@@ -1,9 +1,11 @@
 package couchdb
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/leyle/go-api-starter/httpclient"
 	"net/http"
 )
 
@@ -39,35 +41,48 @@ func (c *CouchDB) basicAuth() map[string]string {
 	return headers
 }
 
-func (c *CouchDB) SetDBName(name string) error {
+func (c *CouchDB) SetDBName(ctx context.Context, name string) error {
 	c.db = name
 
 	// insure db exist, if not, create it
 	url := c.reqURL()
 	authHeader := c.basicAuth()
-	resp, err := util.HttpGet(url, nil, authHeader)
-	if err != nil {
-		consolelog.Logger.Errorf("", "get db[%s] failed, %s", name, err.Error())
-		return err
+	cReq := &httpclient.ClientRequest{
+		Ctx:     ctx,
+		Url:     url,
+		Headers: authHeader,
+		Debug:   true,
 	}
-	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
+
+	resp := httpclient.Get(cReq)
+	if resp.Err != nil {
+		resp.Logger.Error().Msg("SetDBName failed")
+		return resp.Err
+	}
+
+	if isHttpStatusCodeOK(resp.Code) {
 		return nil
 	}
 
-	if resp.StatusCode == http.StatusNotFound {
-		// create it
-		err = c.Create("", nil)
+	if resp.Code == http.StatusNotFound {
+		err := c.Create(ctx, "", nil)
 		if err != nil {
-			consolelog.Logger.Errorf("", "put database[%s] failed, %s", name, err.Error())
+			resp.Logger.Error().Str("dbname", name).Err(err).Msg("create database name failed")
 			return err
 		}
-		// create success
 		return nil
-	} else {
-		err = fmt.Errorf("create database[%s] failed, statuscode[%d]", name, resp.StatusCode)
-		consolelog.Logger.Error("", err.Error())
-		return err
 	}
+
+	// something wrong happend, log and return err
+	resp.Logger.Error().Str("dbname", name).Msg("create failed")
+	return errors.New(string(resp.Body))
+}
+
+func isHttpStatusCodeOK(code int) bool {
+	if code == http.StatusOK || code == http.StatusCreated {
+		return true
+	}
+	return false
 }
 
 func (c *CouchDB) baseURI() string {
@@ -82,75 +97,116 @@ func (c *CouchDB) docURL(id string) string {
 	return fmt.Sprintf("%s/%s", c.reqURL(), id)
 }
 
-func (c *CouchDB) Create(id string, data []byte) error {
+func (c *CouchDB) Create(ctx context.Context, id string, data []byte) error {
 	c.function = "Create"
 	url := c.reqURL()
 	if id != "" {
 		url = c.docURL(id)
 	}
 	authHeader := c.basicAuth()
-	resp, err := util.HttpPut(url, data, authHeader)
-	if err != nil {
-		consolelog.Logger.Errorf("", "db Create failed, %s", err.Error())
-		return err
-	}
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		consolelog.Logger.Errorf("", "db create failed,, read response body failed, %s", err.Error())
-		return err
+
+	cReq := &httpclient.ClientRequest{
+		Ctx:     ctx,
+		Url:     url,
+		Headers: authHeader,
+		Body:    data,
+		Debug:   true,
 	}
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		consolelog.Logger.Errorf("db create failed, reason: %s", string(body))
-		return errors.New(string(body))
+	resp := httpclient.Put(cReq)
+	if resp.Err != nil {
+		resp.Logger.Err(resp.Err).Str("id", id).Msg("Create data failed")
+		return resp.Err
 	}
-	consolelog.Logger.Debugf("", "db create success, %s", string(body))
 
-	return nil
+	if isHttpStatusCodeOK(resp.Code) {
+		return nil
+	}
+
+	resp.Logger.Error().Str("id", id).Msg("create failed")
+	return errors.New(string(resp.Body))
 }
 
-func (c *CouchDB) UpdateById(id string, data []byte) ([]byte, error) {
+func (c *CouchDB) UpdateById(ctx context.Context, id string, data []byte) ([]byte, error) {
 	c.function = "UpdateById"
 	url := c.docURL(id)
 	authHeader := c.basicAuth()
-	resp, err := util.HttpPut(url, data, authHeader)
-	if err != nil {
-		consolelog.Logger.Errorf("", "%s[%s] failed, %s", c.function, id, err.Error())
-		return nil, err
+
+	cReq := &httpclient.ClientRequest{
+		Ctx:     ctx,
+		Url:     url,
+		Headers: authHeader,
+		Body:    data,
+		Debug:   true,
 	}
-	body, err := c.processHttpResp(resp)
-	return body, err
+
+	resp := httpclient.Put(cReq)
+	if resp.Err != nil {
+		resp.Logger.Error().Str("method", c.function).Err(resp.Err).Msg("update failed")
+		return resp.Body, resp.Err
+	}
+
+	if isHttpStatusCodeOK(resp.Code) {
+		return resp.Body, nil
+	}
+
+	return resp.Body, errors.New(string(resp.Body))
 }
 
-func (c *CouchDB) DeleteById(id, rev string) ([]byte, error) {
+func (c *CouchDB) DeleteById(ctx context.Context, id, rev string) ([]byte, error) {
 	c.function = "DeleteById"
 	url := c.docURL(id)
 	url = fmt.Sprintf("%s?rev=%s", url, rev)
 	authHeader := c.basicAuth()
-	resp, err := util.HttpDelete(url, nil, authHeader)
-	if err != nil {
-		consolelog.Logger.Errorf("", "%s[%s] failed, %s", c.function, id, err.Error())
-		return nil, err
+
+	cReq := &httpclient.ClientRequest{
+		Ctx:     ctx,
+		Url:     url,
+		Headers: authHeader,
+		Debug:   true,
 	}
-	body, err := c.processHttpResp(resp)
-	return body, err
+
+	resp := httpclient.Delete(cReq)
+	if resp.Err != nil {
+		resp.Logger.Error().Str("method", c.function).Err(resp.Err).Msg("delete failed")
+		return resp.Body, resp.Err
+	}
+
+	if isHttpStatusCodeOK(resp.Code) {
+		return resp.Body, nil
+	}
+
+	// error occurred
+	return resp.Body, errors.New(string(resp.Body))
 }
 
-func (c *CouchDB) GetById(id string) ([]byte, error) {
+func (c *CouchDB) GetById(ctx context.Context, id string) ([]byte, error) {
 	c.function = "GetById"
 	url := c.docURL(id)
 	authHeader := c.basicAuth()
-	resp, err := util.HttpGet(url, nil, authHeader)
-	if err != nil {
-		consolelog.Logger.Errorf("", "%s[%s] failed, %s", c.function, id, err.Error())
-		return nil, err
-	}
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, NoIdData
+
+	cReq := &httpclient.ClientRequest{
+		Ctx:     ctx,
+		Url:     url,
+		Headers: authHeader,
+		Debug:   true,
 	}
 
-	body, err := c.processHttpResp(resp)
-	return body, err
+	resp := httpclient.Get(cReq)
+	if resp.Err != nil {
+		resp.Logger.Error().Err(resp.Err).Str("method", c.function).Str("id", id).Msg("get failed")
+		return resp.Body, resp.Err
+	}
+
+	if resp.Code == http.StatusNotFound {
+		return resp.Body, NoIdData
+	}
+
+	if isHttpStatusCodeOK(resp.Code) {
+		return resp.Body, nil
+	}
+
+	return resp.Body, errors.New(string(resp.Body))
 }
 
 func (c *CouchDB) GetByKey() {
@@ -159,19 +215,4 @@ func (c *CouchDB) GetByKey() {
 
 func (c *CouchDB) Search() {
 
-}
-
-func (c *CouchDB) processHttpResp(resp *http.Response) ([]byte, error) {
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		consolelog.Logger.Errorf("", "%s read response body failed, %s", c.function, err.Error())
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		err = fmt.Errorf("%s response status code[%d]", c.function, resp.StatusCode)
-		consolelog.Logger.Error("", err.Error())
-		return nil, err
-	}
-
-	return body, nil
 }

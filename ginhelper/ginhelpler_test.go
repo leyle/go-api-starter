@@ -3,7 +3,6 @@ package ginhelper
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"os"
 	"testing"
 	"time"
@@ -21,7 +20,8 @@ func TestGinLogMiddleware(t *testing.T) {
 
 func ginHandler(c *gin.Context) {
 	start := time.Now()
-	logger := log.Ctx(c.Request.Context())
+	// logger := log.Ctx(c.Request.Context())
+	logger := zerolog.Ctx(c.Request.Context())
 	logger.Info().Msg("Start processing...")
 
 	logger.Info().Str("id", "userapp01").Str("name", "admin").Msg("")

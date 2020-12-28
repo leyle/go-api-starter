@@ -3,7 +3,6 @@ package log
 import (
 	"fmt"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -13,7 +12,7 @@ import (
 
 func testHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	logger := log.Ctx(r.Context())
+	logger := zerolog.Ctx(r.Context())
 
 	logger.Info().Msg("Start processing...")
 
@@ -23,7 +22,7 @@ func testHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	logger.Info().Str("id", "userapp01").Str("name", "admin").Msg("")
 	body, _ := ioutil.ReadAll(r.Body)
-	log.Debug().RawJSON("body", body).Msg("")
+	logger.Debug().RawJSON("body", body).Msg("")
 
 	logger.Info().Dur("elapsed", time.Since(start)).Msg("Done")
 }
@@ -39,14 +38,8 @@ func TestLogMiddleware(t *testing.T) {
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
 
 	mux := http.NewServeMux()
-	mux.Handle("/",
-		LogMiddleware(logger)(
-			ReqIdMiddleware(
-				http.HandlerFunc(testHandler),
-			),
-		),
-	)
+	mux.Handle("/", ZeroLogMiddleware(logger, http.HandlerFunc(testHandler)))
 
 	err := http.ListenAndServe(":8080", mux)
-	log.Fatal().Err(err)
+	logger.Fatal().Err(err)
 }

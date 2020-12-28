@@ -47,17 +47,21 @@ func GinLogMiddleware(logger zerolog.Logger) gin.HandlerFunc {
 		if id == "" {
 			id = log.GenerateReqId()
 		}
-		// save logger into current gin.Context
-		l := logger.With().Logger()
-		c.Request = c.Request.WithContext(l.WithContext(c.Request.Context()))
 
+		// save logger into current gin.Context
+		// setup logger req id and save it into current gin.Context
+		// can be used in later code
+		// e.g. logger := zerolog.Ctx(c.Request.Context())
+		l := logger.With().Str(log.ReqIdContextName, id).Logger()
+		lctx := l.WithContext(c.Request.Context())
+		c.Request = c.Request.WithContext(lctx)
+
+		// save req id into current gin.Context
+		// can be used in later code
+		// e.g. c.Get(log.ReqIdContextName)
 		ctx := c.Request.Context()
 		ctx = context.WithValue(ctx, log.ReqIdContextName, id)
 		c.Request = c.Request.WithContext(ctx)
-
-		l.UpdateContext(func(zc zerolog.Context) zerolog.Context {
-			return zc.Str(log.ReqIdContextName, id)
-		})
 
 		// print req log
 		body := reqBody(c)

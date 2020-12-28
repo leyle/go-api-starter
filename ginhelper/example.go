@@ -2,9 +2,11 @@ package ginhelper
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/leyle/go-api-starter/httpclient"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"os"
+	"time"
 )
 
 // below is an example
@@ -32,8 +34,38 @@ func HandlerWrapper(f func(ctx *ExampleContext), ctx *ExampleContext) gin.Handle
 
 func exampleHandler(ctx *ExampleContext) {
 	ctx.Log.Info().Str("user", "user0001").Msg("start process request")
+	time.Sleep(5 * time.Second)
 	ctx.C.JSON(200, "OK")
-	ctx.Log.Info().Str("type", "end").Msg("")
+	ctx.Log.Info().Str("type", "last").Msg("")
+}
+
+func httpClientHandler(ctx *ExampleContext) {
+	// test gin middleware and httpclient api
+	url := "http://192.168.2.40:8000/get"
+	query := make(map[string][]string)
+	query["name"] = []string{"jack", "telsa"}
+	query["age"] = []string{"12", "23"}
+
+	headers := make(map[string]string)
+	headers["X-REQ-ID"] = "hello world"
+
+	cReq := &httpclient.ClientRequest{
+		Ctx:     ctx.C.Request.Context(),
+		Url:     url,
+		Query:   query,
+		Headers: headers,
+		Timeout: 10,
+		Debug:   true,
+	}
+
+	resp := httpclient.Get(cReq)
+	if resp.Err != nil {
+		ctx.C.JSON(400, resp.Err.Error())
+		return
+	}
+
+	ctx.C.JSON(200, string(resp.Body))
+	return
 }
 
 func ExampleMain() {
@@ -43,5 +75,6 @@ func ExampleMain() {
 
 	ctx := &ExampleContext{}
 	e.GET("/", HandlerWrapper(exampleHandler, ctx))
+	e.GET("/get", HandlerWrapper(httpClientHandler, ctx))
 	e.Run(":8080")
 }
