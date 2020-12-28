@@ -180,7 +180,7 @@ func (c *CouchDB) DeleteById(ctx context.Context, id, rev string) ([]byte, error
 	return resp.Body, errors.New(string(resp.Body))
 }
 
-func (c *CouchDB) GetById(ctx context.Context, id string) ([]byte, error) {
+func (c *CouchDB) GetById(ctx context.Context, id string, v interface{}) ([]byte, error) {
 	c.function = "GetById"
 	url := c.docURL(id)
 	authHeader := c.basicAuth()
@@ -189,6 +189,7 @@ func (c *CouchDB) GetById(ctx context.Context, id string) ([]byte, error) {
 		Ctx:     ctx,
 		Url:     url,
 		Headers: authHeader,
+		V:       v,
 		Debug:   true,
 	}
 

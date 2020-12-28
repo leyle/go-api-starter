@@ -25,7 +25,7 @@ var (
 	couchdbName   = "dev"
 )
 
-var id = "7ea10824-4287-4c55-a821-9b38e4aa5ee5"
+var id = "f829bd13-e816-4b32-90fd-d956a65913c1"
 
 func getContext() context.Context {
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
@@ -79,13 +79,8 @@ func TestCouchDB_GetById(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := c.GetById(ctx, id)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	var user *CaUser
-	err = json.Unmarshal(data, &user)
+	_, err = c.GetById(ctx, id, &user)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,13 +95,8 @@ func TestCouchDB_UpdateById(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := c.GetById(ctx, id)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	var user *CaUser
-	err = json.Unmarshal(data, &user)
+	_, err = c.GetById(ctx, id, &user)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,13 +127,9 @@ func TestCouchDB_DeleteById(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := c.GetById(ctx, id)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	var user *CaUser
-	err = json.Unmarshal(data, &user)
+	_, err = c.GetById(ctx, id, &user)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +145,7 @@ func TestCouchDB_DeleteById(t *testing.T) {
 	t.Log(string(resp))
 
 	// recheck if deleted
-	checkResp, err := c.GetById(ctx, id)
+	checkResp, err := c.GetById(ctx, id, &user)
 	if err == NoIdData {
 		t.Log("Delete data success")
 		return
