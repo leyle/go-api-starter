@@ -25,11 +25,12 @@ type CouchDB struct {
 	function string
 }
 
-func NewCouchDB(hostPort, user, passwd string) *CouchDB {
+func NewCouchDB(hostPort, user, passwd, dbName string) *CouchDB {
 	c := &CouchDB{
 		HostPort: hostPort,
 		User:     user,
 		Passwd:   passwd,
+		DBName:   dbName,
 	}
 	return c
 }

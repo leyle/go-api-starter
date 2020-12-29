@@ -35,7 +35,7 @@ func getContext() context.Context {
 }
 
 func getClient() *CouchDB {
-	return NewCouchDB(couchdbHost, couchdbUser, couchdbPasswd)
+	return NewCouchDB(couchdbHost, couchdbUser, couchdbPasswd, couchdbName)
 }
 
 func TestCouchDB_Create(t *testing.T) {
