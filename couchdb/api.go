@@ -19,7 +19,9 @@ type CouchDB struct {
 	HostPort string
 	User     string
 	Passwd   string
-	db       string
+	DBName   string
+
+	// method name
 	function string
 }
 
@@ -42,9 +44,9 @@ func (c *CouchDB) basicAuth() map[string]string {
 }
 
 func (c *CouchDB) SetDBName(ctx context.Context, name string) error {
-	c.db = name
+	c.DBName = name
 
-	// insure db exist, if not, create it
+	// insure DBName exist, if not, create it
 	url := c.reqURL()
 	authHeader := c.basicAuth()
 	cReq := &httpclient.ClientRequest{
@@ -90,13 +92,14 @@ func (c *CouchDB) baseURI() string {
 }
 
 func (c *CouchDB) reqURL() string {
-	return fmt.Sprintf("%s/%s", c.baseURI(), c.db)
+	return fmt.Sprintf("%s/%s", c.baseURI(), c.DBName)
 }
 
 func (c *CouchDB) docURL(id string) string {
 	return fmt.Sprintf("%s/%s", c.reqURL(), id)
 }
 
+// create DBName or item
 func (c *CouchDB) Create(ctx context.Context, id string, data []byte) error {
 	c.function = "Create"
 	url := c.reqURL()
