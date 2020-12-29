@@ -1,6 +1,7 @@
 package ginhelper
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/leyle/go-api-starter/httpclient"
 	"github.com/rs/zerolog"
@@ -68,13 +69,19 @@ func httpClientHandler(ctx *ExampleContext) {
 	return
 }
 
+func panicHandler(ctx *ExampleContext) {
+	err := errors.New("should stop")
+	StopExec(err)
+}
+
 func ExampleMain() {
-	e := gin.New()
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
-	e.Use(GinLogMiddleware(logger))
+
+	e := SetupGin(&logger)
 
 	ctx := &ExampleContext{}
 	e.GET("/", HandlerWrapper(exampleHandler, ctx))
 	e.GET("/get", HandlerWrapper(httpClientHandler, ctx))
+	e.GET("/panic", HandlerWrapper(panicHandler, ctx))
 	e.Run(":8080")
 }

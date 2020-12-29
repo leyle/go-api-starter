@@ -11,7 +11,7 @@ import (
 func TestGinLogMiddleware(t *testing.T) {
 	e := gin.New()
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
-	e.Use(GinLogMiddleware(logger))
+	e.Use(GinLogMiddleware(&logger))
 
 	e.GET("/", ginHandler)
 
