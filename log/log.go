@@ -5,6 +5,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"net/http"
+	"os"
+	"time"
 )
 
 // based on github.com/rs/zerolog
@@ -18,6 +20,28 @@ const (
 
 func GenerateReqId() string {
 	return uuid.New().String()
+}
+
+// logger type
+type LogTargetType int
+
+const (
+	LogTargetStdout  LogTargetType = 1
+	LogTargetConsole LogTargetType = 2
+)
+
+func GetLogger(logTarget LogTargetType) zerolog.Logger {
+	switch logTarget {
+	case LogTargetStdout:
+		return zerolog.New(os.Stdout).With().Timestamp().Logger()
+	case LogTargetConsole:
+		return zerolog.New(zerolog.ConsoleWriter{
+			Out:        os.Stdout,
+			TimeFormat: time.RFC3339,
+		}).With().Timestamp().Logger()
+	default:
+		return zerolog.New(os.Stdout).With().Timestamp().Logger()
+	}
 }
 
 func ZeroLogMiddleware(logger zerolog.Logger, next http.Handler) http.Handler {

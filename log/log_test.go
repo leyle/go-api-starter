@@ -5,7 +5,6 @@ import (
 	"github.com/rs/zerolog"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"testing"
 	"time"
 )
@@ -35,7 +34,9 @@ func TestLogMiddleware(t *testing.T) {
 			TimeFormat: time.RFC3339,
 		}).With().Timestamp().Logger()
 	*/
-	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	// logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	// logger := GetLogger(LogTargetConsole)
+	logger := GetLogger(LogTargetStdout)
 
 	mux := http.NewServeMux()
 	mux.Handle("/", ZeroLogMiddleware(logger, http.HandlerFunc(testHandler)))
