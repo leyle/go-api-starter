@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/gin-gonic/gin"
-	"github.com/leyle/go-api-starter/log"
+	"github.com/leyle/go-api-starter/logmiddleware"
 	"github.com/rs/zerolog"
 	"io/ioutil"
 	"time"
@@ -43,27 +43,27 @@ func (r *respWriter) Write(b []byte) (int, error) {
 func GinLogMiddleware(logger *zerolog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		startT := time.Now()
-		id := c.Request.Header.Get(log.ReqIdHeaderName)
+		id := c.Request.Header.Get(logmiddleware.ReqIdHeaderName)
 		if id == "" {
-			id = log.GenerateReqId()
+			id = logmiddleware.GenerateReqId()
 		}
 
 		// save logger into current gin.Context
 		// setup logger req id and save it into current gin.Context
 		// can be used in later code
 		// e.g. logger := zerolog.Ctx(c.Request.Context())
-		l := logger.With().Str(log.ReqIdContextName, id).Logger()
+		l := logger.With().Str(logmiddleware.ReqIdContextName, id).Logger()
 		lctx := l.WithContext(c.Request.Context())
 		c.Request = c.Request.WithContext(lctx)
 
 		// save req id into current gin.Context
 		// can be used in later code
-		// e.g. c.Get(log.ReqIdContextName)
+		// e.g. c.Get(logmiddleware.ReqIdContextName)
 		ctx := c.Request.Context()
-		ctx = context.WithValue(ctx, log.ReqIdContextName, id)
+		ctx = context.WithValue(ctx, logmiddleware.ReqIdContextName, id)
 		c.Request = c.Request.WithContext(ctx)
 
-		// print req log
+		// print req logmiddleware
 		body := reqBody(c)
 		reqInfo := reqJson(c)
 		event := l.Debug().Str("type", "REQUEST").RawJSON("req", reqInfo).RawJSON("body", body)
@@ -74,7 +74,7 @@ func GinLogMiddleware(logger *zerolog.Logger) gin.HandlerFunc {
 		event.Msg("")
 
 		// write req id to response headers
-		c.Writer.Header().Set(log.ReqIdHeaderName, id)
+		c.Writer.Header().Set(logmiddleware.ReqIdHeaderName, id)
 
 		c.Writer = &respWriter{
 			ResponseWriter: c.Writer,
@@ -83,7 +83,7 @@ func GinLogMiddleware(logger *zerolog.Logger) gin.HandlerFunc {
 
 		c.Next()
 
-		// write response info into log
+		// write response info into logmiddleware
 		statusCode := c.Writer.Status()
 		revent := l.Info().Str("type", "RESPONSE").Int("statusCode", statusCode)
 		rw, ok := c.Writer.(*respWriter)

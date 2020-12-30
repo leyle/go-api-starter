@@ -20,13 +20,13 @@ func TestGinLogMiddleware(t *testing.T) {
 
 func ginHandler(c *gin.Context) {
 	start := time.Now()
-	// logger := log.Ctx(c.Request.Context())
+	// logger := logmiddleware.Ctx(c.Request.Context())
 	logger := zerolog.Ctx(c.Request.Context())
 	logger.Info().Msg("Start processing...")
 
 	logger.Info().Str("id", "userapp01").Str("name", "admin").Msg("")
 	//body, _ := ioutil.ReadAll(c.Request.Body)
-	//log.Debug().RawJSON("body", body).Msg("")
+	//logmiddleware.Debug().RawJSON("body", body).Msg("")
 
 	c.JSON(200, gin.H{"data": start})
 

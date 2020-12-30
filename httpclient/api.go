@@ -26,7 +26,7 @@ type ClientRequest struct {
 
 	V interface{} // response body unmarshal struct
 
-	Debug  bool // if true, log response body
+	Debug  bool // if true, logmiddleware response body
 	method string
 }
 

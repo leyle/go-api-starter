@@ -76,7 +76,7 @@ func (c *CouchDB) SetDBName(ctx context.Context, name string) error {
 		return nil
 	}
 
-	// something wrong happend, log and return err
+	// something wrong happend, logmiddleware and return err
 	resp.Logger.Error().Str("dbname", name).Msg("create failed")
 	return errors.New(string(resp.Body))
 }
