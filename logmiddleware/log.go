@@ -2,8 +2,8 @@ package logmiddleware
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"net/http"
 	"os"
 	"time"
@@ -19,7 +19,7 @@ const (
 )
 
 func GenerateReqId() string {
-	return uuid.New().String()
+	return primitive.NewObjectID().Hex()
 }
 
 // logger type

@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var PrintHeaders = true
+var PrintHeaders = false
 
 var ignoreReadReqBodyPath = []string{}
 
