@@ -3,82 +3,60 @@ package couchdb
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/leyle/go-api-starter/httpclient"
+	"github.com/rs/zerolog"
 	"net/http"
 )
 
 // Create / UpdateById / GetById / DeleteById / GetByKey / Search
 
+const (
+	couchdbAPIFind = "_find"
+)
+
 var (
 	NoIdData = errors.New("no id data")
 )
 
-type CouchDB struct {
+type CouchDBOption struct {
 	HostPort string
 	User     string
 	Passwd   string
-	DBName   string
 
-	// method name
-	function string
+	// http or https
+	Protocol string
 }
 
-func NewCouchDB(hostPort, user, passwd, dbName string) *CouchDB {
-	c := &CouchDB{
-		HostPort: hostPort,
-		User:     user,
-		Passwd:   passwd,
-		DBName:   dbName,
+type Client struct {
+	Opt *CouchDBOption
+	db  string
+	// method name, used by logger
+	method string
+}
+
+func New(opt *CouchDBOption, db string) *Client {
+	if opt.Protocol == "" {
+		opt.Protocol = "http"
 	}
-	return c
+	return &Client{
+		Opt: opt,
+		db:  db,
+	}
 }
 
-func (c *CouchDB) basicAuth() map[string]string {
+func (c *CouchDBOption) basicAuth() map[string]string {
 	auth := fmt.Sprintf("%s:%s", c.User, c.Passwd)
 	enstr := base64.StdEncoding.EncodeToString([]byte(auth))
 	headerVal := fmt.Sprintf("Basic %s", enstr)
-	headers := make(map[string]string)
-	headers["Authorization"] = headerVal
+
+	headers := map[string]string{
+		"Authorization": headerVal,
+		"Content-Type":  "application/json",
+	}
 	return headers
-}
-
-func (c *CouchDB) SetDBName(ctx context.Context, name string) error {
-	c.DBName = name
-
-	// insure DBName exist, if not, create it
-	url := c.reqURL()
-	authHeader := c.basicAuth()
-	cReq := &httpclient.ClientRequest{
-		Ctx:     ctx,
-		Url:     url,
-		Headers: authHeader,
-		Debug:   true,
-	}
-
-	resp := httpclient.Get(cReq)
-	if resp.Err != nil {
-		resp.Logger.Error().Msg("SetDBName failed")
-		return resp.Err
-	}
-
-	if isHttpStatusCodeOK(resp.Code) {
-		return nil
-	}
-
-	if resp.Code == http.StatusNotFound {
-		err := c.Create(ctx, "", nil)
-		if err != nil {
-			resp.Logger.Error().Str("dbname", name).Err(err).Msg("create database name failed")
-			return err
-		}
-		return nil
-	}
-
-	// something wrong happend, logmiddleware and return err
-	resp.Logger.Error().Str("dbname", name).Msg("create failed")
-	return errors.New(string(resp.Body))
 }
 
 func isHttpStatusCodeOK(code int) bool {
@@ -88,24 +66,122 @@ func isHttpStatusCodeOK(code int) bool {
 	return false
 }
 
-func (c *CouchDB) baseURI() string {
-	return fmt.Sprintf("http://%s", c.HostPort)
+func (c *Client) basicAuth() map[string]string {
+	return c.Opt.basicAuth()
 }
 
-func (c *CouchDB) reqURL() string {
-	return fmt.Sprintf("%s/%s", c.baseURI(), c.DBName)
+func (c *Client) dbURL() string {
+	return fmt.Sprintf("%s://%s/%s", c.Opt.Protocol, c.Opt.HostPort, c.db)
 }
 
-func (c *CouchDB) docURL(id string) string {
-	return fmt.Sprintf("%s/%s", c.reqURL(), id)
+func (c *Client) docIdURL(docId string) string {
+	return fmt.Sprintf("%s/%s", c.dbURL(), docId)
+}
+
+func (c *Client) createIndexURL() string {
+	return fmt.Sprintf("%s/%s", c.dbURL(), "_index")
+}
+
+func (c *Client) searchURL() string {
+	return fmt.Sprintf("%s/%s", c.dbURL(), "_find")
+}
+
+func (c *Client) CreateDatabase(ctx context.Context) error {
+	c.method = "CreateDatabase"
+	headers := c.basicAuth()
+	url := c.dbURL()
+
+	req := &httpclient.ClientRequest{
+		Ctx:     ctx,
+		Url:     url,
+		Headers: headers,
+		Debug:   true,
+	}
+
+	resp := httpclient.Get(req)
+	if resp.Err != nil {
+		resp.Logger.Error().Err(resp.Err).Str("action", c.method).Send()
+		return resp.Err
+	}
+
+	if isHttpStatusCodeOK(resp.Code) {
+		resp.Logger.Debug().Str("action", c.method).Str("database", c.db).Msg("database already exist")
+		return nil
+	}
+
+	if resp.Code == http.StatusNotFound {
+		// db not exist, create it
+		err := c.CreateDoc(ctx, "", nil)
+		if err != nil {
+			resp.Logger.Error().Err(err).Str("action", c.method).Str("database", c.db).Msg("create database failed")
+			return err
+		}
+
+		resp.Logger.Debug().Str("action", c.method).Str("database", c.db).Msg("create database success")
+		return nil
+	} else {
+		// other errors
+		err := fmt.Errorf("statusCode[%d], body:%s", resp.Code, string(resp.Body))
+		resp.Logger.Error().Err(err).Str("action", c.method).Str("database", c.db).Msg("create database failed")
+		return err
+	}
+}
+
+func (c *Client) CreateIndex(ctx context.Context, fields []string) error {
+	for _, field := range fields {
+		err := c.createIndex(ctx, field)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Client) createIndex(ctx context.Context, field string) error {
+	c.method = "CreateIndex"
+	headers := c.basicAuth()
+	url := c.createIndexURL()
+
+	name := "index-" + field
+	body := map[string]interface{}{
+		"name": name,
+		"type": "json",
+		"index": map[string][]string{
+			"fields": {field},
+		},
+	}
+	data, _ := json.Marshal(body)
+
+	req := &httpclient.ClientRequest{
+		Ctx:     ctx,
+		Url:     url,
+		Headers: headers,
+		Body:    data,
+		Debug:   true,
+	}
+
+	resp := httpclient.Post(req)
+	if resp.Err != nil {
+		resp.Logger.Error().Err(resp.Err).Str("action", c.method).Str("database", c.db).Send()
+		return resp.Err
+	}
+
+	if isHttpStatusCodeOK(resp.Code) {
+		resp.Logger.Info().Str("action", c.method).Str("database", c.db).Send()
+		return nil
+	}
+
+	err := fmt.Errorf("statusCode[%d], body[%s]", resp.Code, string(resp.Body))
+	resp.Logger.Error().Err(err).Str("action", c.method).Str("database", c.db).Send()
+	return err
 }
 
 // create DBName or item
-func (c *CouchDB) Create(ctx context.Context, id string, data []byte) error {
-	c.function = "Create"
-	url := c.reqURL()
+func (c *Client) CreateDoc(ctx context.Context, id string, data []byte) error {
+	c.method = "Create"
+	url := c.dbURL()
 	if id != "" {
-		url = c.docURL(id)
+		url = c.docIdURL(id)
 	}
 	authHeader := c.basicAuth()
 
@@ -119,7 +195,7 @@ func (c *CouchDB) Create(ctx context.Context, id string, data []byte) error {
 
 	resp := httpclient.Put(cReq)
 	if resp.Err != nil {
-		resp.Logger.Err(resp.Err).Str("id", id).Msg("Create data failed")
+		resp.Logger.Err(resp.Err).Str("action", c.method).Str("id", id).Msg("Create data failed")
 		return resp.Err
 	}
 
@@ -127,13 +203,14 @@ func (c *CouchDB) Create(ctx context.Context, id string, data []byte) error {
 		return nil
 	}
 
-	resp.Logger.Error().Str("id", id).Msg("create failed")
-	return errors.New(string(resp.Body))
+	err := fmt.Errorf("statusCode[%d], body[%s]", resp.Code, string(resp.Body))
+	resp.Logger.Error().Err(err).Str("action", c.method).Str("id", id).Send()
+	return err
 }
 
-func (c *CouchDB) UpdateById(ctx context.Context, id string, data []byte) ([]byte, error) {
-	c.function = "UpdateById"
-	url := c.docURL(id)
+func (c *Client) UpdateById(ctx context.Context, id string, data []byte) ([]byte, error) {
+	c.method = "UpdateById"
+	url := c.docIdURL(id)
 	authHeader := c.basicAuth()
 
 	cReq := &httpclient.ClientRequest{
@@ -146,7 +223,7 @@ func (c *CouchDB) UpdateById(ctx context.Context, id string, data []byte) ([]byt
 
 	resp := httpclient.Put(cReq)
 	if resp.Err != nil {
-		resp.Logger.Error().Str("method", c.function).Err(resp.Err).Msg("update failed")
+		resp.Logger.Error().Err(resp.Err).Str("action", c.method).Str("id", id).Msg("update failed")
 		return resp.Body, resp.Err
 	}
 
@@ -154,12 +231,14 @@ func (c *CouchDB) UpdateById(ctx context.Context, id string, data []byte) ([]byt
 		return resp.Body, nil
 	}
 
-	return resp.Body, errors.New(string(resp.Body))
+	err := fmt.Errorf("statusCode[%d], body[%s]", resp.Code, string(resp.Body))
+	resp.Logger.Error().Err(err).Str("action", c.method).Str("id", id).Send()
+	return resp.Body, err
 }
 
-func (c *CouchDB) DeleteById(ctx context.Context, id, rev string) ([]byte, error) {
-	c.function = "DeleteById"
-	url := c.docURL(id)
+func (c *Client) DeleteById(ctx context.Context, id, rev string) error {
+	c.method = "DeleteById"
+	url := c.docIdURL(id)
 	url = fmt.Sprintf("%s?rev=%s", url, rev)
 	authHeader := c.basicAuth()
 
@@ -172,21 +251,23 @@ func (c *CouchDB) DeleteById(ctx context.Context, id, rev string) ([]byte, error
 
 	resp := httpclient.Delete(cReq)
 	if resp.Err != nil {
-		resp.Logger.Error().Str("method", c.function).Err(resp.Err).Msg("delete failed")
-		return resp.Body, resp.Err
+		resp.Logger.Error().Err(resp.Err).Str("action", c.method).Str("id", id).Msg("delete failed")
+		return resp.Err
 	}
 
 	if isHttpStatusCodeOK(resp.Code) {
-		return resp.Body, nil
+		return nil
 	}
 
 	// error occurred
-	return resp.Body, errors.New(string(resp.Body))
+	err := fmt.Errorf("statusCode[%d], body[%s]", resp.Code, string(resp.Body))
+	resp.Logger.Error().Err(err).Str("action", c.method).Str("id", id).Send()
+	return err
 }
 
-func (c *CouchDB) GetById(ctx context.Context, id string, v interface{}) ([]byte, error) {
-	c.function = "GetById"
-	url := c.docURL(id)
+func (c *Client) GetById(ctx context.Context, id string, v interface{}) ([]byte, error) {
+	c.method = "GetById"
+	url := c.docIdURL(id)
 	authHeader := c.basicAuth()
 
 	cReq := &httpclient.ClientRequest{
@@ -199,7 +280,7 @@ func (c *CouchDB) GetById(ctx context.Context, id string, v interface{}) ([]byte
 
 	resp := httpclient.Get(cReq)
 	if resp.Err != nil {
-		resp.Logger.Error().Err(resp.Err).Str("method", c.function).Str("id", id).Msg("get failed")
+		resp.Logger.Error().Err(resp.Err).Str("action", c.method).Str("id", id).Msg("get failed")
 		return resp.Body, resp.Err
 	}
 
@@ -211,13 +292,86 @@ func (c *CouchDB) GetById(ctx context.Context, id string, v interface{}) ([]byte
 		return resp.Body, nil
 	}
 
-	return resp.Body, errors.New(string(resp.Body))
+	err := fmt.Errorf("statusCode[%d], body[%s]", resp.Code, string(resp.Body))
+	resp.Logger.Error().Err(err).Str("action", c.method).Str("id", id).Send()
+	return resp.Body, err
 }
 
-func (c *CouchDB) GetByKey() {
-
+type SearchRequest struct {
+	Selector       interface{} `json:"selector"`
+	Sort           interface{} `json:"sort,omitempty"`
+	Limit          int         `json:"limit"`
+	Skip           int         `json:"skip"`
+	ExecutionStats bool        `json:"execution_stats,omitempty"`
 }
 
-func (c *CouchDB) Search() {
+func (sr *SearchRequest) marshal() []byte {
+	data, err := json.Marshal(sr)
+	if err != nil {
+		return []byte(err.Error())
+	}
+	return data
+}
 
+type SearchResponse struct {
+	Docs     json.RawMessage `json:"docs"`
+	Bookmark string          `json:"bookmark"`
+}
+
+func (c *Client) Search(ctx context.Context, searchReq *SearchRequest, v interface{}) (*SearchResponse, error) {
+	c.method = "SearchByKey"
+	url := c.searchURL()
+	authHeaders := c.basicAuth()
+
+	const (
+		minLimit = 1
+		minSkip  = 0
+	)
+
+	if searchReq.Limit < minLimit {
+		searchReq.Limit = minLimit
+	}
+	if searchReq.Skip < minSkip {
+		searchReq.Skip = minSkip
+	}
+	logger := zerolog.Ctx(ctx)
+
+	logger.Debug().Str("action", c.method).RawJSON("searchRequest", searchReq.marshal()).Send()
+
+	data, err := json.Marshal(searchReq)
+	if err != nil {
+		logger.Error().Err(err).Str("action", c.method).Msg("marshal input search request failed")
+		return nil, err
+	}
+
+	req := &httpclient.ClientRequest{
+		Ctx:     ctx,
+		Url:     url,
+		Headers: authHeaders,
+		Body:    data,
+		Timeout: 30,
+		V:       v,
+		Debug:   true,
+	}
+
+	resp := httpclient.Post(req)
+	if resp.Err != nil {
+		resp.Logger.Error().Err(resp.Err).Str("action", c.method).Send()
+		return nil, resp.Err
+	}
+
+	if isHttpStatusCodeOK(resp.Code) {
+		// parse data
+		var sr *SearchResponse
+		err = json.Unmarshal(resp.Body, &sr)
+		if err != nil {
+			resp.Logger.Error().Err(err).Str("action", c.method).Msg("unmarshal search result failed")
+			return nil, err
+		}
+		return sr, nil
+	}
+
+	err = fmt.Errorf("statusCode[%d], body[%s]", resp.Code, string(resp.Body))
+	resp.Logger.Error().Err(err).Str("action", c.method).Send()
+	return nil, err
 }
