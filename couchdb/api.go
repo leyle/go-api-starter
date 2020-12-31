@@ -11,12 +11,7 @@ import (
 	"net/http"
 )
 
-// Create / UpdateById / GetById / DeleteById / GetByKey / Search
-
-const (
-	couchdbAPIFind = "_find"
-)
-
+// Create / UpdateById / GetById / DeleteById / Search
 var (
 	NoIdData = errors.New("no id data")
 )
@@ -30,18 +25,18 @@ type CouchDBOption struct {
 	Protocol string
 }
 
-type Client struct {
+type CouchDBClient struct {
 	Opt *CouchDBOption
 	db  string
 	// method name, used by logger
 	method string
 }
 
-func New(opt *CouchDBOption, db string) *Client {
+func New(opt *CouchDBOption, db string) *CouchDBClient {
 	if opt.Protocol == "" {
 		opt.Protocol = "http"
 	}
-	return &Client{
+	return &CouchDBClient{
 		Opt: opt,
 		db:  db,
 	}
@@ -66,27 +61,27 @@ func isHttpStatusCodeOK(code int) bool {
 	return false
 }
 
-func (c *Client) basicAuth() map[string]string {
+func (c *CouchDBClient) basicAuth() map[string]string {
 	return c.Opt.basicAuth()
 }
 
-func (c *Client) dbURL() string {
+func (c *CouchDBClient) dbURL() string {
 	return fmt.Sprintf("%s://%s/%s", c.Opt.Protocol, c.Opt.HostPort, c.db)
 }
 
-func (c *Client) docIdURL(docId string) string {
+func (c *CouchDBClient) docIdURL(docId string) string {
 	return fmt.Sprintf("%s/%s", c.dbURL(), docId)
 }
 
-func (c *Client) createIndexURL() string {
+func (c *CouchDBClient) createIndexURL() string {
 	return fmt.Sprintf("%s/%s", c.dbURL(), "_index")
 }
 
-func (c *Client) searchURL() string {
+func (c *CouchDBClient) searchURL() string {
 	return fmt.Sprintf("%s/%s", c.dbURL(), "_find")
 }
 
-func (c *Client) CreateDatabase(ctx context.Context) error {
+func (c *CouchDBClient) CreateDatabase(ctx context.Context) error {
 	c.method = "CreateDatabase"
 	headers := c.basicAuth()
 	url := c.dbURL()
@@ -127,7 +122,7 @@ func (c *Client) CreateDatabase(ctx context.Context) error {
 	}
 }
 
-func (c *Client) CreateIndex(ctx context.Context, fields []string) error {
+func (c *CouchDBClient) CreateIndex(ctx context.Context, fields []string) error {
 	for _, field := range fields {
 		err := c.createIndex(ctx, field)
 		if err != nil {
@@ -137,7 +132,7 @@ func (c *Client) CreateIndex(ctx context.Context, fields []string) error {
 	return nil
 }
 
-func (c *Client) createIndex(ctx context.Context, field string) error {
+func (c *CouchDBClient) createIndex(ctx context.Context, field string) error {
 	c.method = "CreateIndex"
 	headers := c.basicAuth()
 	url := c.createIndexURL()
@@ -177,7 +172,7 @@ func (c *Client) createIndex(ctx context.Context, field string) error {
 }
 
 // create DBName or item
-func (c *Client) CreateDoc(ctx context.Context, id string, data []byte) error {
+func (c *CouchDBClient) CreateDoc(ctx context.Context, id string, data []byte) error {
 	c.method = "Create"
 	url := c.dbURL()
 	if id != "" {
@@ -208,7 +203,7 @@ func (c *Client) CreateDoc(ctx context.Context, id string, data []byte) error {
 	return err
 }
 
-func (c *Client) UpdateById(ctx context.Context, id string, data []byte) ([]byte, error) {
+func (c *CouchDBClient) UpdateById(ctx context.Context, id string, data []byte) ([]byte, error) {
 	c.method = "UpdateById"
 	url := c.docIdURL(id)
 	authHeader := c.basicAuth()
@@ -236,7 +231,7 @@ func (c *Client) UpdateById(ctx context.Context, id string, data []byte) ([]byte
 	return resp.Body, err
 }
 
-func (c *Client) DeleteById(ctx context.Context, id, rev string) error {
+func (c *CouchDBClient) DeleteById(ctx context.Context, id, rev string) error {
 	c.method = "DeleteById"
 	url := c.docIdURL(id)
 	url = fmt.Sprintf("%s?rev=%s", url, rev)
@@ -265,7 +260,7 @@ func (c *Client) DeleteById(ctx context.Context, id, rev string) error {
 	return err
 }
 
-func (c *Client) GetById(ctx context.Context, id string, v interface{}) ([]byte, error) {
+func (c *CouchDBClient) GetById(ctx context.Context, id string, v interface{}) ([]byte, error) {
 	c.method = "GetById"
 	url := c.docIdURL(id)
 	authHeader := c.basicAuth()
@@ -318,7 +313,7 @@ type SearchResponse struct {
 	Bookmark string          `json:"bookmark"`
 }
 
-func (c *Client) Search(ctx context.Context, searchReq *SearchRequest, v interface{}) (*SearchResponse, error) {
+func (c *CouchDBClient) Search(ctx context.Context, searchReq *SearchRequest, v interface{}) (*SearchResponse, error) {
 	c.method = "SearchByKey"
 	url := c.searchURL()
 	authHeaders := c.basicAuth()
