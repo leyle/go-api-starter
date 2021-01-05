@@ -3,8 +3,7 @@ package httpclient
 import (
 	"context"
 	"encoding/json"
-	"github.com/rs/zerolog"
-	"os"
+	"github.com/leyle/go-api-starter/logmiddleware"
 	"testing"
 )
 
@@ -14,7 +13,7 @@ import (
 
 func TestGet(t *testing.T) {
 	url := "http://192.168.2.40:8000/get"
-	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	logger := logmiddleware.GetLogger(logmiddleware.LogTargetStdout)
 	ctx := context.Background()
 	lctx := logger.WithContext(ctx)
 
@@ -40,7 +39,7 @@ func TestGet(t *testing.T) {
 
 func TestPost(t *testing.T) {
 	url := "http://192.168.2.40:8000/post"
-	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	logger := logmiddleware.GetLogger(logmiddleware.LogTargetStdout)
 	ctx := context.Background()
 	lctx := logger.WithContext(ctx)
 

@@ -2,16 +2,16 @@ package ginhelper
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/leyle/go-api-starter/logmiddleware"
 	"github.com/rs/zerolog"
-	"os"
 	"testing"
 	"time"
 )
 
 func TestGinLogMiddleware(t *testing.T) {
 	e := gin.New()
-	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
-	e.Use(GinLogMiddleware(&logger))
+	logger := logmiddleware.GetLogger(logmiddleware.LogTargetStdout)
+	e.Use(GinLogMiddleware(logger))
 
 	e.GET("/", ginHandler)
 
@@ -20,7 +20,6 @@ func TestGinLogMiddleware(t *testing.T) {
 
 func ginHandler(c *gin.Context) {
 	start := time.Now()
-	// logger := logmiddleware.Ctx(c.Request.Context())
 	logger := zerolog.Ctx(c.Request.Context())
 	logger.Info().Msg("Start processing...")
 

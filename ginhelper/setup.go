@@ -5,7 +5,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func SetupGin(logger *zerolog.Logger) *gin.Engine {
+func SetupGin(logger zerolog.Logger) *gin.Engine {
 	e := gin.New()
 	e.Use(GinLogMiddleware(logger))
 	e.Use(CORSMiddleware())

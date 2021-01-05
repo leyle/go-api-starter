@@ -33,14 +33,14 @@ const (
 func GetLogger(logTarget LogTargetType) zerolog.Logger {
 	switch logTarget {
 	case LogTargetStdout:
-		return zerolog.New(os.Stdout).With().Timestamp().Logger()
+		return zerolog.New(os.Stdout).With().Timestamp().Caller().Logger()
 	case LogTargetConsole:
 		return zerolog.New(zerolog.ConsoleWriter{
 			Out:        os.Stdout,
 			TimeFormat: time.RFC3339,
-		}).With().Timestamp().Logger()
+		}).With().Timestamp().Caller().Logger()
 	default:
-		return zerolog.New(os.Stdout).With().Timestamp().Logger()
+		return zerolog.New(os.Stdout).With().Timestamp().Caller().Logger()
 	}
 }
 

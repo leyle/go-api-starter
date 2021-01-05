@@ -40,7 +40,7 @@ func (r *respWriter) Write(b []byte) (int, error) {
 	return r.ResponseWriter.Write(b)
 }
 
-func GinLogMiddleware(logger *zerolog.Logger) gin.HandlerFunc {
+func GinLogMiddleware(logger zerolog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		startT := time.Now()
 		id := c.Request.Header.Get(logmiddleware.ReqIdHeaderName)

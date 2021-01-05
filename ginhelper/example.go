@@ -4,9 +4,9 @@ import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/leyle/go-api-starter/httpclient"
+	"github.com/leyle/go-api-starter/logmiddleware"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"os"
 	"time"
 )
 
@@ -75,9 +75,9 @@ func panicHandler(ctx *ExampleContext) {
 }
 
 func ExampleMain() {
-	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	logger := logmiddleware.GetLogger(logmiddleware.LogTargetStdout)
 
-	e := SetupGin(&logger)
+	e := SetupGin(logger)
 
 	ctx := &ExampleContext{}
 	e.GET("/", HandlerWrapper(exampleHandler, ctx))

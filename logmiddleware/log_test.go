@@ -27,15 +27,6 @@ func testHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestLogMiddleware(t *testing.T) {
-	// zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	/*
-		logger := zerolog.New(zerolog.ConsoleWriter{
-			Out:        os.Stdout,
-			TimeFormat: time.RFC3339,
-		}).With().Timestamp().Logger()
-	*/
-	// logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
-	// logger := GetLogger(LogTargetConsole)
 	logger := GetLogger(LogTargetStdout)
 
 	mux := http.NewServeMux()
