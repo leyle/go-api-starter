@@ -1,0 +1,12 @@
+debug: true
+server:
+  host: localhost
+  port: 9000
+  protocol: http
+
+couchdb:
+  host: localhost
+  port: 5984
+  user: admin
+  passwd: passwd
+  protocol: http
