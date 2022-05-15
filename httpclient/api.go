@@ -147,7 +147,7 @@ func httpRequest(req *ClientRequest) *ClientResponse {
 
 	if req.Debug {
 		// print response body
-		logger.Debug().RawJSON("responseBody", respBody).Send()
+		logger.Debug().Str("responseBody", string(respBody)).Send()
 	}
 
 	// check if need unmarshal response body
